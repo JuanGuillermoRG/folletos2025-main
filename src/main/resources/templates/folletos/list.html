@@ -17,9 +17,9 @@
                 </select>
             </div>
             <div class="col-auto">
-                <div class="input-group" style="width:150%;">
-                    <input type="text" name="titulo" class="form-control me-2 rounded" placeholder="Buscar por título" th:value="${titulo}">
-                    <button class="btn btn-primary rounded" type="submit">Filtrar</button>
+                <div class="d-flex align-items-center" style="gap:8px;">
+                    <input type="text" name="titulo" class="form-control" placeholder="Buscar por título" th:value="${titulo}" style="min-width:250px;" />
+                    <button class="btn btn-primary" type="submit">Filtrar</button>
                 </div>
             </div>
             <div class="col-auto" th:if="${ano!=null} or (${titulo}!=null and ${titulo}!='')">
