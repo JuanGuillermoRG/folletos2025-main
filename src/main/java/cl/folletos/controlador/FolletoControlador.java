@@ -264,8 +264,8 @@ public class FolletoControlador {
             folletoServicio.guardar(saved);
             logger.info("Folleto final guardado con archivos (id={}, titulo={})", saved.getId(), saved.getTitulo());
             redirectAttrs.addFlashAttribute("successMessage", "Folleto guardado correctamente.");
-            // Redirect to the edit page so the user stays on the form and sees the success message and the 'Volver al listado' button
-            return "redirect:/admin/folletos/edit/" + id;
+            // Redirect to the folleto detail page so the user can see the result of their edits
+            return "redirect:/folletos/" + id;
         } catch (IOException ex) {
             logger.error("Error al guardar archivos para folleto id={}: {}", id, ex.getMessage(), ex);
             model.addAttribute("errorMessage", "Error al guardar archivos: " + ex.getMessage());
@@ -295,15 +295,31 @@ public class FolletoControlador {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/folletos/edit")
     public String editar(@ModelAttribute Folleto folleto,
-             @RequestParam(value = "coverFile", required = false) MultipartFile cover,
-             @RequestParam(value = "pdfFiles", required = false) MultipartFile[] pdfFiles,
-             @RequestParam(value = "audioFiles", required = false) MultipartFile[] audioFiles,
-            Model model, RedirectAttributes redirectAttrs, HttpServletRequest request) {
-         // debug incoming form data binding
-         // normalize file arrays: remove empty entries to avoid false positives from empty inputs
-         pdfFiles = filterNonEmpty(pdfFiles);
-         audioFiles = filterNonEmpty(audioFiles);
+              @RequestParam(value = "coverFile", required = false) MultipartFile cover,
+              @RequestParam(value = "pdfFiles", required = false) MultipartFile[] pdfFiles,
+              @RequestParam(value = "audioFiles", required = false) MultipartFile[] audioFiles,
+             Model model, RedirectAttributes redirectAttrs, HttpServletRequest request) {
+          // debug incoming form data binding
+         // TEMP DIAGNOSTIC: log request content type and parts to troubleshoot missing multipart files
          try {
+             logger.info("[DIAG] Request contentType={}", request.getContentType());
+             try {
+                 var parts = request.getParts();
+                 if (parts != null) {
+                     StringBuilder sb = new StringBuilder();
+                     parts.forEach(p -> sb.append(p.getName()).append("(").append(p.getSize()).append("),"));
+                     logger.info("[DIAG] request.getParts(): {}", sb.toString());
+                 }
+             } catch (Exception e) {
+                 logger.info("[DIAG] request.getParts() not available or failed: {}", e.getMessage());
+             }
+         } catch (Exception e) {
+             logger.warn("[DIAG] unable to log request parts: {}", e.getMessage());
+         }
+          // normalize file arrays: remove empty entries to avoid false positives from empty inputs
+          pdfFiles = filterNonEmpty(pdfFiles);
+          audioFiles = filterNonEmpty(audioFiles);
+          try {
              logger.info("editar: incoming Folleto from form - id={}, titulo='{}', ano={}, categoria='{}', descripcion='{}'",
                      folleto == null ? null : folleto.getId(), folleto == null ? null : folleto.getTitulo(),
                      folleto == null ? null : folleto.getAno(), folleto == null ? null : folleto.getCategoria(),
@@ -459,7 +475,7 @@ public class FolletoControlador {
             }
             folletoServicio.guardar(existing);
             redirectAttrs.addFlashAttribute("successMessage", "Folleto guardado correctamente.");
-            // Stay on the edit form after saving so the template can show the successMessage and the 'Volver al listado' button
+            // After editing, redirect back to the admin edit page so the user can continue editing and see updated files
             return "redirect:/admin/folletos/edit/" + existing.getId();
          } catch (IOException ex) {
             logger.error("Error al guardar archivos para folleto id={}: {}", existing.getId(), ex.getMessage());

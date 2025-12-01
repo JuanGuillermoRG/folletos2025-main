@@ -17,7 +17,8 @@
             <a class="btn btn-outline-info" th:if="${folleto.categoria=='LOCALES'}" th:href="@{/folletos/locales}">Volver al listado</a>
         </div>
     </div>
-    <form th:if="${successMessage==null}" th:action="${folleto.id==null} ? @{/admin/folletos/add} : @{/admin/folletos/edit}" method="post" enctype="multipart/form-data" id="folletoForm" onsubmit="return validateForm()">
+    <!-- Always show the form so user can continue editing after actions like deleting a file -->
+    <form th:action="${folleto.id==null} ? @{/admin/folletos/add} : @{/admin/folletos/edit}" method="post" enctype="multipart/form-data" id="folletoForm" onsubmit="return validateForm()">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" th:if="${_csrf != null}" id="_csrf_token" data-csrf-param="${_csrf.parameterName}" />
         <input type="hidden" th:if="${folleto.id!=null}" name="id" th:value="${folleto.id}" />
         <div class="mb-3">
@@ -60,8 +61,8 @@
                     <!-- list related pdf FolletoFile entries -->
                     <li th:each="f : ${folleto.files}" th:if="${f.type == 'pdf'}">
                         <a th:href="@{/files/{id}/file/{fileId}(id=${folleto.id},fileId=${f.id})}" target="_blank" th:text="${f.originalName}">PDF</a>
-                        <button type="button" class="btn btn-sm btn-outline-danger" style="margin-left:8px;" th:onclick="|submitDeleteFile(${folleto.id}, ${f.id}, 'Confirmar eliminación del archivo?')|" sec:authorize="hasRole('ROLE_ADMIN')">Eliminar</button>
-                    </li>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-file-btn" sec:authorize="hasRole('ROLE_ADMIN')" th:attr="data-action=@{/admin/folletos/{id}/files/delete/{fileId}(id=${folleto.id},fileId=${f.id})}" th:attrappend="data-confirm='Confirmar eliminación del archivo?'" style="margin-left:8px;">Eliminar</button>
+                     </li>
                     <!-- legacy single-file link (kept for backward compat) -->
                     <li th:if="${folleto.pdfFilename!=null}">
                         <a th:href="@{/files/{id}/pdf(id=${folleto.id})}" target="_blank">Ver/Descargar PDF (legacy)</a>
@@ -90,7 +91,7 @@
                     <div th:each="f : ${folleto.files}" th:if="${f.type == 'audio'}" style="margin-bottom:10px;">
                         <div style="display:flex; align-items:center; gap:8px;">
                             <p class="mb-0" th:text="${f.originalName}"></p>
-                            <button type="button" class="btn btn-sm btn-outline-danger" th:onclick="|submitDeleteFile(${folleto.id}, ${f.id}, 'Confirmar eliminación del archivo de audio?')|" sec:authorize="hasRole('ROLE_ADMIN')">Eliminar</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-file-btn" sec:authorize="hasRole('ROLE_ADMIN')" th:attr="data-action=@{/admin/folletos/{id}/files/delete/{fileId}(id=${folleto.id},fileId=${f.id})}" th:attrappend="data-confirm='Confirmar eliminación del archivo de audio?'" style="display:inline;">Eliminar</button>
                         </div>
                         <audio controls style="max-width:320px; display:block; margin-bottom:6px;">
                             <source th:src="@{/files/{id}/file/{fileId}(id=${folleto.id},fileId=${f.id})}" />
@@ -187,95 +188,48 @@ function validateForm() {
 }
 </script>
 
+<!-- Hidden form used to submit delete requests (avoids nested forms) -->
+<form id="deleteFileForm" method="post" style="display:none;">
+    <input type="hidden" th:if="${_csrf!=null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+</form>
+
 <script>
-function submitDeleteFile(folletoId, fileId, message) {
-    if (!confirm(message)) return;
-    const csrfElem = document.getElementById('_csrf_token');
-    const param = csrfElem ? csrfElem.getAttribute('data-csrf-param') : '_csrf';
-    const token = csrfElem ? csrfElem.value : '';
-    const form = document.createElement('form');
-    form.method = 'post';
-    form.action = '/admin/folletos/' + folletoId + '/files/delete/' + fileId;
-    if (param) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = param;
-        input.value = token;
-        form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
-}
+    // handle delete-file-btn clicks by submitting the hidden form with proper action and CSRF
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.delete-file-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                var action = btn.getAttribute('data-action');
+                var confirmMsg = btn.getAttribute('data-confirm') || 'Confirmar eliminación?';
+                if (!action) return;
+                if (!confirm(confirmMsg)) return;
+                var form = document.getElementById('deleteFileForm');
+                form.action = action;
+                form.submit();
+            });
+        });
 
-// hide/show audio based on category selection and require PDF for LOCAL
-document.addEventListener('DOMContentLoaded', function() {
-    const cat = document.getElementById('categoriaSelect');
-    // container holding audio inputs
-    const audioContainer = document.getElementById('audioFilesContainer');
-    const pdf = document.getElementById('pdfFilesInput');
-    function update() {
-        if (!cat) return;
-        const val = cat.value;
-        if (val === 'LOCALES') {
-            if (audioContainer && audioContainer.closest('.mb-3')) audioContainer.closest('.mb-3').style.display = 'none';
-        } else {
-            if (audioContainer && audioContainer.closest('.mb-3')) audioContainer.closest('.mb-3').style.display = '';
-        }
-    }
-    update();
-    if (cat) cat.addEventListener('change', update);
-
-    // Delegated handlers to support dynamically added rows
-    function createAudioRow() {
-        const row = document.createElement('div');
-        row.className = 'audio-input-row';
-        row.style.display = 'flex'; row.style.gap = '8px'; row.style.alignItems = 'center';
-        const input = document.createElement('input');
-        input.type = 'file'; input.name = 'audioFiles'; input.accept = 'audio/*'; input.className = 'form-control';
-        const add = document.createElement('button');
-        add.type = 'button'; add.className = 'btn btn-sm btn-outline-primary add-audio-btn'; add.title = 'Agregar otro audio'; add.textContent = '+';
-        const remove = document.createElement('button');
-        remove.type = 'button'; remove.className = 'btn btn-sm btn-outline-danger remove-audio-btn'; remove.title = 'Quitar este audio'; remove.textContent = '−';
-        row.appendChild(input);
-        row.appendChild(add);
-        row.appendChild(remove);
-        return row;
-    }
-
-    function updateRemoveButtons() {
-        const rows = audioContainer.querySelectorAll('.audio-input-row');
-        if (!rows) return;
-        if (rows.length === 1) {
-            const btn = rows[0].querySelector('.remove-audio-btn'); if (btn) btn.disabled = true;
-        } else {
-            rows.forEach(r => { const b = r.querySelector('.remove-audio-btn'); if (b) b.disabled = false; });
-        }
-    }
-
-    // handle clicks on add/remove buttons using delegation
-    audioContainer.addEventListener('click', function(e) {
-        if (e.target && e.target.classList.contains('add-audio-btn')) {
-            const newRow = createAudioRow();
-            audioContainer.appendChild(newRow);
-            updateRemoveButtons();
-            e.preventDefault();
-        } else if (e.target && e.target.classList.contains('remove-audio-btn')) {
-            const row = e.target.closest('.audio-input-row');
-            const rows = audioContainer.querySelectorAll('.audio-input-row');
-            if (rows.length <= 1) {
-                // if it's the only row, just clear the input value
-                const inp = row.querySelector('input[type=file]'); if (inp) inp.value = '';
-            } else {
-                audioContainer.removeChild(row);
-            }
-            updateRemoveButtons();
-            e.preventDefault();
+        // Debug: intercept main form submit to log FormData (files included) before sending
+        var mainForm = document.getElementById('folletoForm');
+        if (mainForm) {
+            mainForm.addEventListener('submit', function(e) {
+                try {
+                    var fd = new FormData(mainForm);
+                    console.group('FolletoForm FormData');
+                    for (var pair of fd.entries()) {
+                        if (pair[1] instanceof File) {
+                            console.log(pair[0], pair[1].name, pair[1].size + ' bytes');
+                        } else {
+                            console.log(pair[0], pair[1]);
+                        }
+                    }
+                    console.groupEnd();
+                } catch (ex) {
+                    console.error('Error enumerating FormData:', ex);
+                }
+                // allow the form to submit normally
+            });
         }
     });
-
-    // ensure initial state of remove buttons
-    updateRemoveButtons();
-});
 </script>
 
 <div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"></div>

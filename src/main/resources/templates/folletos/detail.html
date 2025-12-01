@@ -5,6 +5,7 @@
 <div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
 <div class="container mt-4">
     <div th:if="${folleto!=null}">
+        <div th:if="${successMessage!=null}" class="alert alert-success" th:text="${successMessage}"></div>
         <h3 th:text="${folleto.titulo}"></h3>
         <p><strong>Año:</strong> <span th:text="${folleto.ano}"></span></p>
         <p th:text="${folleto.descripcion}"></p>

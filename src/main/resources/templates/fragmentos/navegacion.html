@@ -3,7 +3,7 @@
 
 <div th:fragment="navegacion-seccion" th:remove="tag">
 	<div class="container-fluid px-0">
-		<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+		<nav id="siteNavbar" class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark" style="z-index:1040;">
 			<div class="container-fluid">
 				<h3 class="navbar-text mb-0 me-3">
 					<a href="https://www.tabernaculoelias.cl" target="_blank" rel="noopener"
@@ -30,4 +30,17 @@
 			</div>
 		</nav>
 	</div>
+
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            function adjustBodyPaddingTop() {
+                var nav = document.getElementById('siteNavbar');
+                if (!nav) return;
+                var h = nav.offsetHeight || 0;
+                document.body.style.paddingTop = h + 'px';
+            }
+            adjustBodyPaddingTop();
+            window.addEventListener('resize', adjustBodyPaddingTop);
+        });
+    </script>
 </div>

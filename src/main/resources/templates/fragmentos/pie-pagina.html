@@ -2,10 +2,60 @@
 <html lang="es" xmlns:th="http://www.thymeleaf.org"/>
 
     <div th:fragment="pie-pagina-seccion" th:remove="tag">
-	<script
-		src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
-		integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
-		crossorigin="anonymous">
-	</script>
-	</div>
 
+        <footer id="siteFooter" class="bg-light py-3 mt-4" style="position:fixed; left:0; right:0; bottom:0; width:100%; z-index:1030;">
+            <div class="container text-center">
+                <small>
+                    Tabernaculo Elias &nbsp; fono: <a href="tel:972864524">972864524</a> &nbsp; direccion: 
+                    <a href="#" id="addressLink">Calle 7 poniente 6534</a>
+                </small>
+            </div>
+        </footer>
+
+        <!-- Modal que muestra el mapa -->
+        <div class="modal fade" id="mapModal" tabindex="-1" aria-labelledby="mapModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="mapModalLabel">Ubicación - Tabernaculo Elias</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body p-0" style="height:450px;">
+                        <iframe id="mapFrame" src="https://www.google.com/maps?q=Calle+7+poniente+6534&output=embed" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script
+            src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+            crossorigin="anonymous">
+        </script>
+
+        <script th:inline="javascript">
+            document.addEventListener('DOMContentLoaded', function() {
+                // Ensure footer is not covering page content: add bottom padding equal to footer height
+                function adjustBodyPadding() {
+                    var footer = document.getElementById('siteFooter');
+                    if (!footer) return;
+                    var h = footer.offsetHeight || 0;
+                    document.body.style.paddingBottom = h + 'px';
+                }
+                // initial adjust and on resize
+                adjustBodyPadding();
+                window.addEventListener('resize', adjustBodyPadding);
+                var addr = document.getElementById('addressLink');
+                if (addr) {
+                    addr.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        var modalEl = document.getElementById('mapModal');
+                        if (modalEl) {
+                            var modal = new bootstrap.Modal(modalEl);
+                            modal.show();
+                        }
+                    });
+                }
+            });
+        </script>
+    </div>
