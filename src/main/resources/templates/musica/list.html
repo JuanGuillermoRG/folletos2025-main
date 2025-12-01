@@ -17,14 +17,16 @@
         </div>
         <div th:if="${musicas!=null and !#lists.isEmpty(musicas)}">
             <table class="table table-striped">
-                <thead><tr><th>ID</th><th>Título</th><th>Año</th><th>Acciones</th></tr></thead>
+                <thead>
+                    <tr sec:authorize="hasRole('ROLE_ADMIN')"><th>ID</th><th>Nombre del Album</th><th>Acciones</th></tr>
+                    <tr sec:authorize="!hasRole('ROLE_ADMIN')"><th>Nombre del Album</th></tr>
+                </thead>
                 <tbody>
-                    <tr th:each="m : ${musicas}">
+                    <tr sec:authorize="hasRole('ROLE_ADMIN')" th:each="m : ${musicas}">
                         <td th:text="${m.id}"></td>
                         <td><a th:href="@{/musica/{id}(id=${m.id})}" th:text="${m.titulo}"></a></td>
-                        <td th:text="${m.ano}"></td>
                         <td>
-                            <div class="d-inline" sec:authorize="hasRole('ROLE_ADMIN')">
+                            <div class="d-inline">
                                 <a class="btn btn-sm btn-outline-secondary me-1" th:href="@{/admin/musica/edit/{id}(id=${m.id})}" title="Editar">Editar</a>
                                 <form th:action="@{/admin/musica/delete/{id}(id=${m.id})}" method="post" style="display:inline;" onsubmit="return confirm('¿Eliminar este álbum?');">
                                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
@@ -32,6 +34,9 @@
                                 </form>
                             </div>
                         </td>
+                    </tr>
+                    <tr sec:authorize="!hasRole('ROLE_ADMIN')" th:each="m : ${musicas}">
+                        <td><a th:href="@{/musica/{id}(id=${m.id})}" th:text="${m.titulo}"></a></td>
                     </tr>
                 </tbody>
             </table>

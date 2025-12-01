@@ -18,15 +18,14 @@
             <thead><tr><th>#</th><th>Archivo</th><th>Acciones</th></tr></thead>
             <tbody>
                 <tr th:each="track,iterStat : ${archivos}">
-                    <td th:text="${iterStat.index + 1}"></td>
-                    <td th:text="${track.originalName}"></td>
+                    <td class="align-middle" th:text="${iterStat.index + 1}"></td>
+                    <td class="align-middle" th:text="${track.originalName}"></td>
                     <td>
                         <audio th:attr="controls='controls'" style="max-width:320px; display:block; margin-bottom:6px;">
                             <source th:src="@{/musica/files/{id}/{file}(id=${musica.id},file=${track.filename})}" th:type="${track.filename.endsWith('.m4a') ? 'audio/mp4' : (track.filename.endsWith('.ogg') ? 'audio/ogg' : (track.filename.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg'))}" />
                             Your browser does not support the audio element.
                         </audio>
-                        <!-- Download link visible to non-admin users only -->
-                        <a class="btn btn-sm btn-outline-secondary me-1" sec:authorize="!hasRole('ROLE_ADMIN')" th:href="@{/musica/files/{id}/{file}(id=${musica.id},file=${track.filename},download=true)}">Descargar</a>
+                        <!-- Download link removed: la descarga ya está disponible desde los tres puntos del reproductor -->
                         <!-- For admins: only allow deleting the single track here (no album deletion, no download) -->
                         <div class="d-inline" sec:authorize="hasRole('ROLE_ADMIN')" style="display:inline-block;">
                             <form th:action="@{/admin/musica/{id}/delete-file(id=${musica.id})}" method="post" style="display:inline; margin-left:6px;" onsubmit="return confirm('¿Eliminar esta pista? Esto eliminará solo el archivo seleccionado.');">

@@ -8,7 +8,10 @@
     <div class="mb-3">
         <form class="row g-2" method="get" action="/folletos">
             <div class="col-auto">
-                <input type="number" name="ano" class="form-control" placeholder="Año" th:value="${ano}">
+                <select name="ano" class="form-control">
+                    <option value="" th:selected="${ano==null}">Todos</option>
+                    <option th:each="year : ${#numbers.sequence(1947,1965)}" th:value="${year}" th:text="${year}" th:selected="${ano==year}"></option>
+                </select>
             </div>
             <div class="col-auto">
                 <input type="text" name="titulo" class="form-control" placeholder="Buscar por título" th:value="${titulo}">
