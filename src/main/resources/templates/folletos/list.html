@@ -31,16 +31,20 @@
             <div th:if="${folletos!=null and !#lists.isEmpty(folletos)}">
              <table class="table table-striped">
                  <thead>
-                     <tr><th>ID</th><th>Título</th><th>Año</th><th>Acciones</th></tr>
+                     <tr>
+                        <th sec:authorize="hasRole('ADMIN')">ID</th>
+                        <th>Título</th>
+                        <th>Año</th>
+                        <th sec:authorize="hasRole('ADMIN')">Acciones</th>
+                     </tr>
                  </thead>
                  <tbody>
                      <tr th:each="f : ${folletos}">
-                         <td th:text="${f.id}"></td>
+                         <td sec:authorize="hasRole('ADMIN')" th:text="${f.id}"></td>
                          <td><a th:href="@{/folletos/{id}(id=${f.id})}" th:text="${f.titulo}"></a></td>
                          <td th:text="${f.ano}"></td>
-                         <td>
-                             <!-- Edit and Delete buttons visible only to ADMIN -->
-                             <div class="d-inline" sec:authorize="hasRole('ADMIN')">
+                         <td sec:authorize="hasRole('ADMIN')">
+                             <div class="d-inline">
                                 <a class="btn btn-sm btn-outline-secondary me-1" th:href="@{/admin/folletos/edit/{id}(id=${f.id})}" title="Editar">Editar</a>
                                 <form th:action="@{/admin/folletos/delete/{id}(id=${f.id})}" method="post" style="display:inline;" onsubmit="return confirm('¿Eliminar este folleto?');">
                                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
