@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragmentos/cabecero :: cabecero-seccion(titulo='Folleto')}"></head>
+<body>
+<div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
+<div class="container mt-4">
+    <div th:if="${folleto!=null}">
+        <h3 th:text="${folleto.titulo}"></h3>
+        <p><strong>Año:</strong> <span th:text="${folleto.ano}"></span></p>
+        <p th:text="${folleto.descripcion}"></p>
+
+        <div th:if="${folleto.coverFilename!=null}">
+            <img th:src="@{/files/{id}/cover(id=${folleto.id})}" style="max-width:300px;" alt="Portada"/>
+        </div>
+
+        <div class="mt-3">
+            <a th:if="${folleto.pdfFilename!=null}" th:href="@{/files/{id}/pdf(id=${folleto.id})}" class="btn btn-secondary" target="_blank">Ver/Descargar PDF</a>
+        </div>
+
+        <div class="mt-3" th:if="${folleto.audioFilename!=null}">
+            <audio controls th:src="@{/files/{id}/audio(id=${folleto.id})}"></audio>
+        </div>
+
+    </div>
+</div>
+<div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"></div>
+</body>
+</html>

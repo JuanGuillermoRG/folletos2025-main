@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragmentos/cabecero :: cabecero-seccion(titulo='Folletos')}"></head>
+<body>
+<div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
+<div class="container mt-4">
+    <h3 th:text="${categoriaLabel}">Folletos</h3>
+    <div class="mb-3">
+        <form class="row g-2" method="get" action="/folletos">
+            <div class="col-auto">
+                <input type="number" name="ano" class="form-control" placeholder="Año" th:value="${ano}">
+            </div>
+            <div class="col-auto">
+                <input type="text" name="titulo" class="form-control" placeholder="Buscar por título" th:value="${titulo}">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary">Filtrar</button>
+            </div>
+            <div class="col-auto" th:if="${ano!=null} or (${titulo}!=null and ${titulo}!='')">
+                <a class="btn btn-secondary" th:href="@{/folletos}">Listar Todos</a>
+            </div>
+        </form>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <div th:if="${noResultsMessage!=null}" class="alert alert-info" th:text="${noResultsMessage}"></div>
+
+            <div th:if="${folletos==null or #lists.isEmpty(folletos)}">
+                <p th:if="${noResultsMessage==null}">No hay folletos para mostrar.</p>
+            </div>
+            <div th:if="${folletos!=null and !#lists.isEmpty(folletos)}">
+             <table class="table table-striped">
+                 <thead>
+                     <tr><th>ID</th><th>Título</th><th>Año</th><th>Acciones</th></tr>
+                 </thead>
+                 <tbody>
+                     <tr th:each="f : ${folletos}">
+                         <td th:text="${f.id}"></td>
+                         <td><a th:href="@{/folletos/{id}(id=${f.id})}" th:text="${f.titulo}"></a></td>
+                         <td th:text="${f.ano}"></td>
+                         <td>
+                             <!-- Edit and Delete buttons visible only to ADMIN -->
+                             <div class="d-inline" sec:authorize="hasRole('ADMIN')">
+                                <a class="btn btn-sm btn-outline-secondary me-1" th:href="@{/admin/folletos/edit/{id}(id=${f.id})}" title="Editar">Editar</a>
+                                <form th:action="@{/admin/folletos/delete/{id}(id=${f.id})}" method="post" style="display:inline;" onsubmit="return confirm('¿Eliminar este folleto?');">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                </form>
+                             </div>
+                         </td>
+                     </tr>
+                 </tbody>
+             </table>
+            </div>
+         </div>
+     </div>
+</div>
+
+<div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"></div>
+</body>
+</html>

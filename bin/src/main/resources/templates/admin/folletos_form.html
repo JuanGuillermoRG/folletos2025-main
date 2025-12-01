@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/cabecero :: cabecero-seccion(titulo='Admin Folletos')}"></head>
+<body>
+<div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
+<div class="container mt-4">
+    <h3 th:text="${folleto.id==null} ? 'Agregar Folleto' : 'Editar Folleto'"></h3>
+
+    <div th:if="${errorMessage!=null}" class="alert alert-danger" th:text="${errorMessage}"></div>
+
+    <form th:action="${folleto.id==null} ? @{/admin/folletos/add} : @{/admin/folletos/edit}" method="post" enctype="multipart/form-data" id="folletoForm" onsubmit="return validateForm()">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" th:if="${_csrf != null}" />
+        <input type="hidden" th:if="${folleto.id!=null}" name="id" th:value="${folleto.id}" />
+        <div class="mb-3">
+            <label class="form-label">Título</label>
+            <input class="form-control" type="text" name="titulo" th:value="${folleto.titulo}" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Categoría</label>
+            <select class="form-select" name="categoria" id="categoriaSelect">
+                <option th:value="'FOLLETOS'" th:selected="${folleto.categoria=='FOLLETOS'}">Folletos</option>
+                <option th:value="'COMPAGINADOS'" th:selected="${folleto.categoria=='COMPAGINADOS'}">Folletos Compaginados</option>
+                <option th:value="'LOCALES'" th:selected="${folleto.categoria=='LOCALES'}">Folletos Locales (solo PDF)</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Año</label>
+            <input class="form-control" type="number" name="ano" th:value="${folleto.ano}" min="1" max="3000" step="1" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Descripción</label>
+            <textarea class="form-control" name="descripcion" rows="4" th:text="${folleto.descripcion}"></textarea>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Portada (imagen: jpg, png, webp)</label>
+            <input class="form-control" type="file" name="coverFile" accept="image/*" />
+            <div class="form-text">Tamaño máximo por archivo: <span th:text="${T(java.lang.String).format('%.1f MB', (maxUploadBytes/1024.0/1024.0))}"></span></div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">PDF</label>
+            <input class="form-control" type="file" name="pdfFile" accept="application/pdf" id="pdfFileInput" />
+            <div class="form-text">Formatos permitidos: PDF</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Audio (MP3, OGG, WAV, M4A, AAC)</label>
+            <input class="form-control" type="file" name="audioFile" accept="audio/*" id="audioFileInput" />
+            <div class="form-text">Formato recomendado: MP3. Si subes otro formato puede no reproducirse en todos los navegadores.</div>
+        </div>
+        <div class="mb-3">
+            <button class="btn btn-primary" type="submit">Guardar</button>
+            <a class="btn btn-secondary" th:href="@{/folletos}">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+<script th:inline="javascript">
+// Client-side validation: check file sizes and basic types before submitting
+function bytesToMB(bytes) { return bytes / 1024 / 1024; }
+function validateForm() {
+    const maxBytes = /*[[${maxUploadBytes}]]*/ 52428800;
+    const yearInput = document.querySelector('input[name="ano"]');
+    const pdfInput = document.querySelector('input[name="pdfFile"]');
+    const audioInput = document.querySelector('input[name="audioFile"]');
+    const coverInput = document.querySelector('input[name="coverFile"]');
+    const categoria = document.querySelector('select[name="categoria"]');
+
+    const allowedAudioExt = ['.mp3', '.ogg', '.wav', '.m4a', '.aac'];
+    const allowedImageExt = ['.jpg', '.jpeg', '.png', '.webp'];
+
+    function checkFile(input, allowedExts, name) {
+        if (!input || !input.files || input.files.length === 0) return null;
+        const f = input.files[0];
+        if (f.size > maxBytes) return `${name}: el archivo supera el límite de ${bytesToMB(maxBytes).toFixed(1)} MB`;
+        const fn = f.name.toLowerCase();
+        const ext = fn.substring(fn.lastIndexOf('.'));
+        if (allowedExts && allowedExts.length>0 && !allowedExts.includes(ext)) {
+            return `${name}: formato no permitido (${ext}).`;
+        }
+        return null;
+    }
+
+    // check year
+    if (yearInput && yearInput.value) {
+        const y = parseInt(yearInput.value, 10);
+        if (isNaN(y) || y <= 0) { alert('El año ingresado no es válido.'); return false; }
+        if (y < 1000 || y > 3000) { if (!confirm('El año ingresado parece fuera de rango. Continuar?')) return false; }
+    }
+    // check cover
+    const coverErr = checkFile(coverInput, allowedImageExt, 'Portada');
+    if (coverErr) { alert(coverErr); return false; }
+    // check pdf
+    if (pdfInput && pdfInput.files && pdfInput.files.length>0) {
+        const f = pdfInput.files[0];
+        if (f.size > maxBytes) { alert('PDF: el archivo supera el límite de ' + bytesToMB(maxBytes).toFixed(1) + ' MB'); return false; }
+        const ext = f.name.toLowerCase().substring(f.name.lastIndexOf('.'));
+        if (ext !== '.pdf') { alert('PDF: formato no permitido.'); return false; }
+    }
+    // check audio
+    if (audioInput && audioInput.files && audioInput.files.length>0) {
+        const f = audioInput.files[0];
+        if (f.size > maxBytes) { alert('Audio: el archivo supera el límite de ' + bytesToMB(maxBytes).toFixed(1) + ' MB'); return false; }
+        const ext = f.name.toLowerCase().substring(f.name.lastIndexOf('.'));
+        if (!allowedAudioExt.includes(ext)) { alert('Audio: formato no permitido.'); return false; }
+    }
+    // If category is LOCALES, require PDF and disallow audio
+    if (categoria && categoria.value === 'LOCALES') {
+        if (!pdfInput || !pdfInput.files || pdfInput.files.length === 0) { alert('Los folletos locales requieren un archivo PDF.'); return false; }
+        if (audioInput && audioInput.files && audioInput.files.length>0) { alert('Los folletos locales no permiten archivos de audio.'); return false; }
+    }
+    return true;
+}
+</script>
+
+<script>
+// hide/show audio based on category selection and require PDF for LOCAL
+document.addEventListener('DOMContentLoaded', function() {
+    const cat = document.getElementById('categoriaSelect');
+    const audio = document.getElementById('audioFileInput');
+    const pdf = document.getElementById('pdfFileInput');
+    function update() {
+        if (!cat) return;
+        const val = cat.value;
+        if (val === 'LOCALES') {
+            if (audio) audio.closest('.mb-3').style.display = 'none';
+        } else {
+            if (audio) audio.closest('.mb-3').style.display = '';
+        }
+    }
+    update();
+    if (cat) cat.addEventListener('change', update);
+});
+</script>
+
+<div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"></div>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6"/>
+
+<div th:fragment="navegacion-seccion" th:remove="tag">
+	<div class="container">
+		<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+			<div class="container-fluid">
+				<a class="navbar-brand" href="/">Listado de Folletos</a>
+				<button class="navbar-toggler" type="button"
+					data-bs-toggle="collapse" data-bs-target="#navbarNavAltMarkup"
+					aria-controls="#navbarNavAltMarkup" aria-expanded="false"
+					aria-label="Toggle navigation">
+					<span class="navbar-toggler-icon"></span>
+				</button>
+				<div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+					<div class="navbar-nav">
+						<a class="nav-link" href="/folletos/combinados">Folletos Compaginados</a>
+						<a class="nav-link" href="/folletos/locales">Folletos Locales</a>
+						<a class="nav-link" href="/musica">Musica</a>
+						<!-- Admin Folletos visible solo para administradores -->
+						<a class="nav-link" href="/admin/folletos/add" sec:authorize="hasRole('ROLE_ADMIN')">Admin Folletos</a>
+						<a class="nav-link" href="/admin/musica/upload" sec:authorize="hasRole('ROLE_ADMIN')">Admin Musica</a>
+						<a class="nav-link" href="/login" sec:authorize="isAnonymous()">Login</a>
+					</div>
+				</div>
+			</div>
+		</nav>
+	</div>
+</div>

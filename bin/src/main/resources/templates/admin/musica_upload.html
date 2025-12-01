@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/cabecero :: cabecero-seccion(titulo='Subir a Álbum')}"></head>
+<body>
+<div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
+<div class="container mt-4">
+    <h3>Subir archivos de audio a un álbum (carpeta)</h3>
+
+    <div th:if="${errorMessage!=null}" class="alert alert-danger" th:text="${errorMessage}"></div>
+
+    <form th:action="@{/admin/musica/upload}" method="post" enctype="multipart/form-data">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+        <div class="mb-3">
+            <label class="form-label">Seleccionar álbum existente</label>
+            <select class="form-select" name="albumId">
+                <option value="" selected>-- Seleccionar --</option>
+                <option th:each="a : ${albums}" th:value="${a.id}" th:text="${a.titulo}"></option>
+            </select>
+            <div class="form-text">O ingresa un nuevo nombre de carpeta más abajo para crearla automáticamente.</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">O crear nueva carpeta (álbum)</label>
+            <input class="form-control" type="text" name="newFolder" placeholder="Ej: Musica Congregacional" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Archivos de audio (puedes seleccionar varios)</label>
+            <input class="form-control" type="file" name="audioFiles" accept="audio/*" multiple />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">O pegar URLs externas (vínculos directos de descarga, uno por línea o separados por comas)</label>
+            <textarea class="form-control" name="audioUrls" rows="4" placeholder="https://onedrive.live.com/.../download?...."></textarea>
+            <div class="form-text">Para OneDrive/Dropbox/otros servicios asegúrate de usar enlaces directos de descarga. Si pegas enlaces compartidos que muestran páginas HTML, la descarga puede fallar.</div>
+        </div>
+
+        <div class="mb-3 form-check">
+            <input class="form-check-input" type="checkbox" id="storeLinksOnly" name="storeLinksOnly" value="true" />
+            <label class="form-check-label" for="storeLinksOnly">Guardar solo los enlaces (no descargar/almacenar los archivos)</label>
+            <div class="form-text">Marca esta opción si quieres que los URLs pegados se guarden tal cual en la base de datos en lugar de descargarlos al servidor.</div>
+        </div>
+
+        <div class="mb-3">
+            <button class="btn btn-primary" type="submit">Subir</button>
+            <a class="btn btn-secondary" th:href="@{/musica}">Cancelar</a>
+        </div>
+    </form>
+
+    <div class="mt-3">
+        <p class="text-muted">Nota: si indicas un nuevo nombre de carpeta se creará un registro de "álbum" con ese título y los archivos se almacenarán dentro de uploads/{id}.</p>
+    </div>
+</div>
+<div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"></div>
+</body>
+</html>

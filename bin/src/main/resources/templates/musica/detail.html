@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
+<head th:replace="~{fragmentos/cabecero :: cabecero-seccion(titulo='Detalle de Álbum')}"></head>
+<body>
+<div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
+<div class="container mt-4">
+    <h3 th:text="${musica.titulo}">Álbum</h3>
+
+    <div th:if="${archivos==null or #lists.isEmpty(archivos)}">
+        <p>No hay pistas en este álbum.</p>
+        <div sec:authorize="hasRole('ROLE_ADMIN')">
+            <a class="btn btn-primary" th:href="@{/admin/musica/upload}">Subir pistas a este álbum</a>
+        </div>
+    </div>
+
+    <div th:if="${archivos!=null and !#lists.isEmpty(archivos)}">
+        <table class="table table-striped">
+            <thead><tr><th>#</th><th>Archivo</th><th>Acciones</th></tr></thead>
+            <tbody>
+                <tr th:each="track,iterStat : ${archivos}">
+                    <td th:text="${iterStat.index + 1}"></td>
+                    <td th:text="${track.originalName}"></td>
+                    <td>
+                        <audio th:attr="controls='controls'" style="max-width:320px; display:block; margin-bottom:6px;">
+                            <source th:src="@{/musica/files/{id}/{file}(id=${musica.id},file=${track.filename})}" th:type="${track.filename.endsWith('.m4a') ? 'audio/mp4' : (track.filename.endsWith('.ogg') ? 'audio/ogg' : (track.filename.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg'))}" />
+                            Your browser does not support the audio element.
+                        </audio>
+                        <!-- Download link visible to non-admin users only -->
+                        <a class="btn btn-sm btn-outline-secondary me-1" sec:authorize="!hasRole('ROLE_ADMIN')" th:href="@{/musica/files/{id}/{file}(id=${musica.id},file=${track.filename},download=true)}">Descargar</a>
+                        <!-- For admins: only allow deleting the single track here (no album deletion, no download) -->
+                        <div class="d-inline" sec:authorize="hasRole('ROLE_ADMIN')" style="display:inline-block;">
+                            <form th:action="@{/admin/musica/{id}/delete-file(id=${musica.id})}" method="post" style="display:inline; margin-left:6px;" onsubmit="return confirm('¿Eliminar esta pista? Esto eliminará solo el archivo seleccionado.');">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                                <input type="hidden" name="filename" th:value="${track.filename}" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar pista</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div sec:authorize="hasRole('ROLE_ADMIN')">
+            <a class="btn btn-sm btn-primary" th:href="@{/admin/musica/upload}">Subir más pistas</a>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a class="btn btn-secondary" th:href="@{/musica}">Volver al listado</a>
+        <a class="btn btn-sm btn-outline-primary" sec:authorize="hasRole('ROLE_ADMIN')" th:href="@{/admin/musica/edit/{id}(id=${musica.id})}" style="margin-left:10px;">Editar álbum</a>
+        <!-- Single album delete button for admins (only here, not per-track) -->
+        <form sec:authorize="hasRole('ROLE_ADMIN')" th:action="@{/admin/musica/delete/{id}(id=${musica.id})}" method="post" style="display:inline; margin-left:10px;" onsubmit="return confirm('¿Eliminar este álbum y todos sus archivos? Esta acción es irreversible.');">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+            <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar álbum</button>
+        </form>
+    </div>
+</div>
+<div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"></div>
+</body>
+</html>

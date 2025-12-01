@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head  th:replace="~{fragmentos/cabecero :: cabecero-seccion(titulo='Editar')}">
+
+</head>
+<body style="background-color: rgb(125, 181, 172);">
+	<!-- div para la barra de navegacion -->
+	<div th:replace="~{fragmentos/navegacion::navegacion-seccion}"/>
+	<div class="container">
+		<div class="container text-center" style="margin:30px">
+			<h3>Editar Contacto</h3>
+		</div>
+<!-- 	aria-describedby="emailHelp" 	 -->
+		<div class="container">
+			<form th:action="@{/editar}" th:object="${contacto}" method="post"> 
+			<input type="hidden" th:field="*{idContacto}"/>
+			<input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" th:if="${_csrf!=null}" />
+			  
+			  <div class="mb-3">
+			    <label for="nombre" class="form-label">Nombre</label>
+			    <input type="text" th:field="*{nombre}" class="form-control" id="nombre" name="nombre" required>
+			    <div class="text-danger" th:if="${#fields.hasErrors('nombre')}" th:errors="*{nombre}"></div>
+			  </div>
+			  
+			  <div class="mb-3">
+			    <label for="celular" class="form-label">Celular</label>
+			    <input type="text" th:field="*{celular}" class="form-control" id="celular" name="celular">
+			    <div class="text-danger" th:if="${#fields.hasErrors('celular')}" th:errors="*{celular}"></div>
+			  </div>
+			  
+			  <div class="mb-3">
+				  <label for="email" class="form-label">Email</label>
+				  <input type="email" th:field="*{email}" class="form-control" id="email" name="email"
+				      required
+				      pattern="[^@\\s]+@[^@\\s]+\\.[^@\\s]+"
+				      title="Introduce un email válido (debe contener @)">
+				  <div class="text-danger" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></div>
+			  </div>
+			  
+			  <div class="text-center">
+				  <button type="submit" class="btn btn-warning btn-sm me-3">Editar</button>
+				  <a th:href="@{/}" class="btn btn-danger btn-sm">Regresar</a>
+			  </div>
+			  
+			</form>
+		</div>
+	</div>
+	<div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"/>
+</body>
+</html>

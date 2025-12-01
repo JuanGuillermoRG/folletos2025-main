@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/cabecero :: cabecero-seccion(titulo='Admin Musica')}"></head>
+<body>
+<div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
+<div class="container mt-4">
+    <h3 th:text="${musica.id==null} ? 'Crear Carpeta (Álbum)' : 'Editar Carpeta (Álbum)'"></h3>
+
+    <div th:if="${errorMessage!=null}" class="alert alert-danger" th:text="${errorMessage}"></div>
+
+    <form th:action="${musica.id==null} ? @{/admin/musica/add} : @{/admin/musica/edit}" method="post">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" th:if="${_csrf != null}" />
+        <input type="hidden" th:if="${musica.id!=null}" name="id" th:value="${musica.id}" />
+        <div class="mb-3">
+            <label class="form-label">Nombre de la carpeta (título)</label>
+            <input class="form-control" type="text" name="titulo" th:value="${musica.titulo}" required />
+            <div class="form-text">Ej: "Cantos del Profeta" o "Cantos Congregacionales"</div>
+        </div>
+
+        <div class="mb-3">
+            <button class="btn btn-primary" type="submit">Guardar carpeta</button>
+            <a class="btn btn-secondary" th:href="@{/musica}">Cancelar</a>
+            <a class="btn btn-outline-secondary" th:href="@{/admin/musica/upload}">Subir archivos a una carpeta</a>
+        </div>
+    </form>
+</div>
+<div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"></div>
+</body>
+</html>
