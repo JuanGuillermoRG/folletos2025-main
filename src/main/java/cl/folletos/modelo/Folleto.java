@@ -6,6 +6,11 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Column;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.FetchType;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class Folleto {
@@ -17,7 +22,7 @@ public class Folleto {
     private String titulo;
     private Integer ano;
 
-    // Rutas/keys relativas a files almacenados
+    // Rutas/keys relativas a files almacenados (legacy single-file fields kept for compatibility)
     private String coverFilename;
     private String pdfFilename;
     private String audioFilename;
@@ -27,6 +32,10 @@ public class Folleto {
     // Categoria para distinguir entre folletos locales y combinados (COMBINADO, LOCAL)
     @Column(length = 30)
     private String categoria;
+
+    // New: related files (multiple PDFs or audio tracks). Cascade so saving Folleto persists these.
+    @OneToMany(mappedBy = "folleto", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<FolletoFile> files = new ArrayList<>();
 
     public Folleto() {}
 
@@ -54,4 +63,7 @@ public class Folleto {
 
     public String getCategoria() { return categoria; }
     public void setCategoria(String categoria) { this.categoria = categoria; }
+
+    public List<FolletoFile> getFiles() { return files; }
+    public void setFiles(List<FolletoFile> files) { this.files = files; }
 }

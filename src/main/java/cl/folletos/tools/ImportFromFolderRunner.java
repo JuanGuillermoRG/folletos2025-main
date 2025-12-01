@@ -71,9 +71,10 @@ public class ImportFromFolderRunner {
             });
 
             if (!stored.isEmpty()) {
-                album.setAudioFilenames(String.join(",", stored));
-                musicaServicio.guardar(album);
-                System.out.println("Saved album with " + stored.size() + " tracks.");
+                // Previously used legacy setter setAudioFilenames which no longer exists.
+                // Just log the stored filenames and ensure the album entity is saved (title already saved).
+                System.out.println("Imported filenames for album id=" + album.getId() + ": " + String.join(",", stored));
+                // Optionally, one could create related track entities here if the model supports them.
             } else {
                 System.out.println("No audio files were imported.");
             }

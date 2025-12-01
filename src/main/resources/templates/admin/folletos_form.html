@@ -7,6 +7,7 @@
     <h3 th:text="${folleto.id==null} ? 'Agregar Folleto' : 'Editar Folleto'"></h3>
 
     <div th:if="${errorMessage!=null}" class="alert alert-danger" th:text="${errorMessage}"></div>
+    <div th:if="${successMessage!=null}" class="alert alert-success" th:text="${successMessage}"></div>
 
     <form th:action="${folleto.id==null} ? @{/admin/folletos/add} : @{/admin/folletos/edit}" method="post" enctype="multipart/form-data" id="folletoForm" onsubmit="return validateForm()">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" th:if="${_csrf != null}" />
@@ -43,24 +44,50 @@
         </div>
         <div class="mb-3">
             <label class="form-label">PDF</label>
-            <input class="form-control" type="file" name="pdfFile" accept="application/pdf" id="pdfFileInput" />
-            <div th:if="${folleto.pdfFilename!=null}" style="margin-top:8px;">
-                <p class="mb-1"><strong>PDF actual:</strong> <a th:href="@{/files/{id}/pdf(id=${folleto.id})}" target="_blank">Ver/Descargar PDF</a></p>
+            <!-- allow multiple PDFs -->
+            <input class="form-control" type="file" name="pdfFiles" accept="application/pdf" id="pdfFilesInput" multiple />
+            <div th:if="${folleto.pdfFilename!=null or (folleto.files != null)}" style="margin-top:8px;">
+                <p class="mb-1"><strong>PDF(s) actual(es):</strong></p>
+                <ul>
+                    <!-- list related pdf FolletoFile entries -->
+                    <li th:each="f : ${folleto.files}" th:if="${f.type == 'pdf'}">
+                        <a th:href="@{/files/{id}/file/{fileId}(id=${folleto.id},fileId=${f.id})}" target="_blank" th:text="${f.originalName}">PDF</a>
+                    </li>
+                    <!-- legacy single-file link (kept for backward compat) -->
+                    <li th:if="${folleto.pdfFilename!=null}">
+                        <a th:href="@{/files/{id}/pdf(id=${folleto.id})}" target="_blank">Ver/Descargar PDF (legacy)</a>
+                    </li>
+                </ul>
             </div>
-            <div th:if="${folleto.pdfFilename==null}" class="form-text">No hay PDF cargado.</div>
+            <div th:if="${folleto.pdfFilename==null and (folleto.files == null or folleto.files.isEmpty())}" class="form-text">No hay PDF cargado.</div>
             <div class="form-text">Formatos permitidos: PDF</div>
         </div>
-        <div class="mb-3">
+        <!-- Audio inputs hidden for LOCALES; render only when category is not LOCALES -->
+        <div class="mb-3" th:if="${folleto.categoria == null or folleto.categoria != 'LOCALES'}">
             <label class="form-label">Audio (MP3, OGG, WAV, M4A, AAC)</label>
-            <input class="form-control" type="file" name="audioFile" accept="audio/*" id="audioFileInput" />
-            <div th:if="${folleto.audioFilename!=null}" style="margin-top:8px;">
-                <p class="mb-1"><strong>Audio actual:</strong></p>
-                <audio th:attr="controls='controls'" style="max-width:320px; display:block; margin-bottom:6px;">
-                    <source th:src="@{/files/{id}/audio(id=${folleto.id})}" />
-                    Tu navegador no soporta el elemento de audio.
-                </audio>
+            <!-- allow multiple audio files -->
+            <div id="audioFilesContainer">
+                <div class="audio-input-row" style="display:flex; gap:8px; align-items:center;">
+                    <input class="form-control" type="file" name="audioFiles" accept="audio/*" />
+                    <button type="button" class="btn btn-sm btn-outline-primary add-audio-btn" title="Agregar otro audio">+</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-audio-btn" title="Quitar este audio">−</button>
+                </div>
             </div>
-            <div th:if="${folleto.audioFilename==null}" class="form-text">No hay audio cargado.</div>
+            <div class="form-text">Puedes agregar varias partes presionando '+'. Cada input cargará un archivo separado.</div>
+            <div th:if="${(folleto.files != null)}" style="margin-top:8px;">
+                <p class="mb-1"><strong>Audio(s) actual(es):</strong></p>
+                <div>
+                    <!-- list related audio FolletoFile entries with players -->
+                    <div th:each="f : ${folleto.files}" th:if="${f.type == 'audio'}" style="margin-bottom:10px;">
+                        <p th:text="${f.originalName}"></p>
+                        <audio controls style="max-width:320px; display:block; margin-bottom:6px;">
+                            <source th:src="@{/files/{id}/file/{fileId}(id=${folleto.id},fileId=${f.id})}" />
+                            Tu navegador no soporta el elemento de audio.
+                        </audio>
+                    </div>
+                </div>
+            </div>
+            <div th:if="${folleto.audioFilename==null and (folleto.files == null or folleto.files.isEmpty())}" class="form-text">No hay audio cargado.</div>
             <div class="form-text">Formato recomendado: MP3. Si subes otro formato puede no reproducirse en todos los navegadores.</div>
         </div>
         <div class="mb-3">
@@ -79,53 +106,68 @@ function bytesToMB(bytes) { return bytes / 1024 / 1024; }
 function validateForm() {
     const maxBytes = /*[[${maxUploadBytes}]]*/ 52428800;
     const yearInput = document.querySelector('input[name="ano"]');
-    const pdfInput = document.querySelector('input[name="pdfFile"]');
-    const audioInput = document.querySelector('input[name="audioFile"]');
+    // inputs were changed to allow multiple file input elements
+    const pdfInput = document.querySelector('#pdfFilesInput');
+    const audioInputs = document.querySelectorAll('input[name="audioFiles"]');
     const coverInput = document.querySelector('input[name="coverFile"]');
     const categoria = document.querySelector('select[name="categoria"]');
 
     const allowedAudioExt = ['.mp3', '.ogg', '.wav', '.m4a', '.aac'];
     const allowedImageExt = ['.jpg', '.jpeg', '.png', '.webp'];
 
-    function checkFile(input, allowedExts, name) {
-        if (!input || !input.files || input.files.length === 0) return null;
-        const f = input.files[0];
-        if (f.size > maxBytes) return `${name}: el archivo supera el límite de ${bytesToMB(maxBytes).toFixed(1)} MB`;
-        const fn = f.name.toLowerCase();
-        const ext = fn.substring(fn.lastIndexOf('.'));
-        if (allowedExts && allowedExts.length>0 && !allowedExts.includes(ext)) {
-            return `${name}: formato no permitido (${ext}).`;
+    function checkFileSingle(f, allowedExts, name) {
+        // if no file provided, it's valid (nothing to check)
+        if (!f) return true;
+        if (f.size > maxBytes) {
+            alert('El archivo ' + name + ' excede el tamaño máximo permitido de ' + (maxBytes / 1024 / 1024).toFixed(1) + ' MB.');
+            return false;
         }
-        return null;
+        const ext = f.name.substring(f.name.lastIndexOf('.')).toLowerCase();
+        if (!allowedExts.includes(ext)) {
+            alert('El archivo ' + name + ' tiene una extensión no permitida. Extensiones permitidas: ' + allowedExts.join(', '));
+            return false;
+        }
+        return true;
     }
 
-    // check year
-    if (yearInput && yearInput.value) {
-        const y = parseInt(yearInput.value, 10);
-        if (isNaN(y) || y <= 0) { alert('El año ingresado no es válido.'); return false; }
-        if (y < 1000 || y > 3000) { if (!confirm('El año ingresado parece fuera de rango. Continuar?')) return false; }
+    function checkFiles(input, allowedExts, name) {
+        if (!input) return true;
+        // input may be either a single input element or a FileList
+        if (input.files && input.files.length > 0) {
+            for (let i = 0; i < input.files.length; i++) {
+                if (!checkFileSingle(input.files[i], allowedExts, name)) return false;
+            }
+            return true;
+        }
+        return true;
     }
-    // check cover
-    const coverErr = checkFile(coverInput, allowedImageExt, 'Portada');
-    if (coverErr) { alert(coverErr); return false; }
-    // check pdf
-    if (pdfInput && pdfInput.files && pdfInput.files.length>0) {
-        const f = pdfInput.files[0];
-        if (f.size > maxBytes) { alert('PDF: el archivo supera el límite de ' + bytesToMB(maxBytes).toFixed(1) + ' MB'); return false; }
-        const ext = f.name.toLowerCase().substring(f.name.lastIndexOf('.'));
-        if (ext !== '.pdf') { alert('PDF: formato no permitido.'); return false; }
+
+    if (yearInput.value && (yearInput.value < 1900 || yearInput.value > new Date().getFullYear() + 1)) {
+        alert('El año debe estar entre 1900 y ' + (new Date().getFullYear() + 1) + '.');
+        return false;
     }
-    // check audio
-    if (audioInput && audioInput.files && audioInput.files.length>0) {
-        const f = audioInput.files[0];
-        if (f.size > maxBytes) { alert('Audio: el archivo supera el límite de ' + bytesToMB(maxBytes).toFixed(1) + ' MB'); return false; }
-        const ext = f.name.toLowerCase().substring(f.name.lastIndexOf('.'));
-        if (!allowedAudioExt.includes(ext)) { alert('Audio: formato no permitido.'); return false; }
-    }
-    // If category is LOCALES, require PDF and disallow audio
-    if (categoria && categoria.value === 'LOCALES') {
-        if (!pdfInput || !pdfInput.files || pdfInput.files.length === 0) { alert('Los folletos locales requieren un archivo PDF.'); return false; }
-        if (audioInput && audioInput.files && audioInput.files.length>0) { alert('Los folletos locales no permiten archivos de audio.'); return false; }
+    // check files only if the input section is visible and the input exists
+    try {
+        const pdfSectionVisible = pdfInput && pdfInput.closest && pdfInput.closest('.mb-3') && pdfInput.closest('.mb-3').offsetParent !== null;
+        const audioSectionVisible = audioInputs && audioInputs.length>0 && audioInputs[0].closest && audioInputs[0].closest('.mb-3') && audioInputs[0].closest('.mb-3').offsetParent !== null;
+        const coverSectionVisible = coverInput && coverInput.closest && coverInput.closest('.mb-3') && coverInput.closest('.mb-3').offsetParent !== null;
+
+        if (pdfSectionVisible && !checkFiles(pdfInput, ['.pdf'], 'PDF')) {
+            return false;
+        }
+        if (audioSectionVisible) {
+            // validate all audio inputs
+            for (let i=0;i<audioInputs.length;i++) {
+                if (!checkFiles(audioInputs[i], allowedAudioExt, 'Audio')) return false;
+            }
+        }
+        if (coverSectionVisible) {
+            const coverFile = coverInput && coverInput.files && coverInput.files[0] ? coverInput.files[0] : null;
+            if (!checkFileSingle(coverFile, allowedImageExt, 'Portada')) return false;
+        }
+    } catch (e) {
+        // if any unexpected JS error occurs, don't block form submission; log to console
+        console.error('Validation helper error:', e);
     }
     return true;
 }
@@ -135,19 +177,71 @@ function validateForm() {
 // hide/show audio based on category selection and require PDF for LOCAL
 document.addEventListener('DOMContentLoaded', function() {
     const cat = document.getElementById('categoriaSelect');
-    const audio = document.getElementById('audioFileInput');
-    const pdf = document.getElementById('pdfFileInput');
+    // container holding audio inputs
+    const audioContainer = document.getElementById('audioFilesContainer');
+    const pdf = document.getElementById('pdfFilesInput');
     function update() {
         if (!cat) return;
         const val = cat.value;
         if (val === 'LOCALES') {
-            if (audio) audio.closest('.mb-3').style.display = 'none';
+            if (audioContainer && audioContainer.closest('.mb-3')) audioContainer.closest('.mb-3').style.display = 'none';
         } else {
-            if (audio) audio.closest('.mb-3').style.display = '';
+            if (audioContainer && audioContainer.closest('.mb-3')) audioContainer.closest('.mb-3').style.display = '';
         }
     }
     update();
     if (cat) cat.addEventListener('change', update);
+
+    // Delegated handlers to support dynamically added rows
+    function createAudioRow() {
+        const row = document.createElement('div');
+        row.className = 'audio-input-row';
+        row.style.display = 'flex'; row.style.gap = '8px'; row.style.alignItems = 'center';
+        const input = document.createElement('input');
+        input.type = 'file'; input.name = 'audioFiles'; input.accept = 'audio/*'; input.className = 'form-control';
+        const add = document.createElement('button');
+        add.type = 'button'; add.className = 'btn btn-sm btn-outline-primary add-audio-btn'; add.title = 'Agregar otro audio'; add.textContent = '+';
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'btn btn-sm btn-outline-danger remove-audio-btn'; remove.title = 'Quitar este audio'; remove.textContent = '−';
+        row.appendChild(input);
+        row.appendChild(add);
+        row.appendChild(remove);
+        return row;
+    }
+
+    function updateRemoveButtons() {
+        const rows = audioContainer.querySelectorAll('.audio-input-row');
+        if (!rows) return;
+        if (rows.length === 1) {
+            const btn = rows[0].querySelector('.remove-audio-btn'); if (btn) btn.disabled = true;
+        } else {
+            rows.forEach(r => { const b = r.querySelector('.remove-audio-btn'); if (b) b.disabled = false; });
+        }
+    }
+
+    // handle clicks on add/remove buttons using delegation
+    audioContainer.addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('add-audio-btn')) {
+            const newRow = createAudioRow();
+            audioContainer.appendChild(newRow);
+            updateRemoveButtons();
+            e.preventDefault();
+        } else if (e.target && e.target.classList.contains('remove-audio-btn')) {
+            const row = e.target.closest('.audio-input-row');
+            const rows = audioContainer.querySelectorAll('.audio-input-row');
+            if (rows.length <= 1) {
+                // if it's the only row, just clear the input value
+                const inp = row.querySelector('input[type=file]'); if (inp) inp.value = '';
+            } else {
+                audioContainer.removeChild(row);
+            }
+            updateRemoveButtons();
+            e.preventDefault();
+        }
+    });
+
+    // ensure initial state of remove buttons
+    updateRemoveButtons();
 });
 </script>
 

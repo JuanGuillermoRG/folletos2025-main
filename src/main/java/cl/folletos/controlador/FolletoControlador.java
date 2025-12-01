@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.security.Principal;
 
@@ -35,8 +36,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import cl.folletos.modelo.Folleto;
+import cl.folletos.modelo.FolletoFile;
 import cl.folletos.servicio.FileStorageService;
 import cl.folletos.servicio.FolletoServicio;
+import cl.folletos.repositorio.FolletoFileRepositorio;
+import jakarta.servlet.http.HttpServletRequest;
 
 @Controller
 public class FolletoControlador {
@@ -48,6 +52,9 @@ public class FolletoControlador {
 
     @Autowired
     private FileStorageService storageService;
+
+    @Autowired
+    private FolletoFileRepositorio folletoFileRepo;
 
     @Value("${file.upload.max-size-bytes:52428800}")
     private long maxUploadBytes;
@@ -129,8 +136,8 @@ public class FolletoControlador {
     @PostMapping("/admin/folletos/add")
     public String agregar(@ModelAttribute Folleto folleto,
             @RequestParam(value = "coverFile", required = false) MultipartFile cover,
-            @RequestParam(value = "pdfFile", required = false) MultipartFile pdf,
-            @RequestParam(value = "audioFile", required = false) MultipartFile audio,
+            @RequestParam(value = "pdfFiles", required = false) MultipartFile[] pdfFiles,
+            @RequestParam(value = "audioFiles", required = false) MultipartFile[] audioFiles,
             Model model) {
         logger.info("Solicitud de creación recibida");
 
@@ -142,15 +149,23 @@ public class FolletoControlador {
             return "admin/folletos_form";
         }
 
-        // Server-side category validation: LOCALES requires PDF and must not include audio
+        // Server-side category validation: LOCALES requires at least one PDF and must not include audio
         if (folleto.getCategoria() != null && "LOCALES".equalsIgnoreCase(folleto.getCategoria())) {
-            if (pdf == null || pdf.isEmpty()) {
-                model.addAttribute("errorMessage", "Los folletos locales requieren un archivo PDF.");
+            boolean hasPdfUpload = pdfFiles != null && pdfFiles.length>0;
+            if (!hasPdfUpload) {
+                model.addAttribute("errorMessage", "Los folletos locales requieren al menos un archivo PDF.");
                 model.addAttribute("folleto", folleto);
                 model.addAttribute("maxUploadBytes", maxUploadBytes);
                 return "admin/folletos_form";
             }
-            if (audio != null && !audio.isEmpty()) {
+            // Only consider an audio upload present if any MultipartFile is non-empty.
+            boolean hasAudioUpload = false;
+            if (audioFiles != null) {
+                for (MultipartFile a : audioFiles) {
+                    if (a != null && !a.isEmpty()) { hasAudioUpload = true; break; }
+                }
+            }
+            if (hasAudioUpload) {
                 model.addAttribute("errorMessage", "Los folletos locales no permiten archivos de audio.");
                 model.addAttribute("folleto", folleto);
                 model.addAttribute("maxUploadBytes", maxUploadBytes);
@@ -176,14 +191,76 @@ public class FolletoControlador {
                 String fn = storageService.storeFile(id, cover, "cover");
                 saved.setCoverFilename(fn);
             }
-            if (pdf != null && !pdf.isEmpty()) {
-                String fn = storageService.storeFile(id, pdf, "pdf");
-                saved.setPdfFilename(fn);
+
+            // debug: log uploaded audio/pdf counts and names
+            if (audioFiles != null) {
+                StringBuilder sb = new StringBuilder();
+                for (MultipartFile m : audioFiles) {
+                    if (m == null) continue;
+                    sb.append(m.getOriginalFilename()).append(",");
+                }
+                logger.info("agregar: audioFiles count={} names={}", audioFiles.length, sb.toString());
+            } else {
+                logger.info("agregar: audioFiles is null");
             }
-            if (audio != null && !audio.isEmpty()) {
-                String fn = storageService.storeFile(id, audio, "audio");
-                saved.setAudioFilename(fn);
+            if (pdfFiles != null) {
+                StringBuilder sbp = new StringBuilder();
+                for (MultipartFile m : pdfFiles) { if (m==null) continue; sbp.append(m.getOriginalFilename()).append(","); }
+                logger.info("agregar: pdfFiles count={} names={}", pdfFiles.length, sbp.toString());
             }
+
+            // store any uploaded pdf files
+            if (pdfFiles != null) {
+                boolean firstPdfSet = false;
+                for (MultipartFile pf : pdfFiles) {
+                    if (pf == null || pf.isEmpty()) continue;
+                    String fn = storageService.storeFile(id, pf, "pdf");
+                    FolletoFile ff = new FolletoFile();
+                    // Use the uploaded original filename as base for display; if it already exists among this folleto's files,
+                    // append a part counter so multiple uploads with the same name are shown distinctly.
+                    String displayName = pf.getOriginalFilename();
+                    if (displayName == null || displayName.isBlank()) displayName = fn;
+                    String baseDisplay = displayName;
+                    int part = 1;
+                    while (originalNameExists(saved.getFiles(), displayName)) {
+                        // append part suffix until unique
+                         displayName = baseDisplay + " (parte " + part + ")";
+                         part++;
+                    }
+                    ff.setOriginalName(displayName);
+                    ff.setFilename(fn);
+                    ff.setType("pdf");
+                    ff.setFolleto(saved);
+                    saved.getFiles().add(ff);
+                    if (!firstPdfSet) { saved.setPdfFilename(fn); firstPdfSet = true; }
+                }
+            }
+
+            // store any uploaded audio files
+            if (audioFiles != null) {
+                boolean firstAudioSet = false;
+                for (MultipartFile af : audioFiles) {
+                    if (af == null || af.isEmpty()) continue;
+                    String fn = storageService.storeFile(id, af, "audio");
+                    FolletoFile ff = new FolletoFile();
+                    // ensure display name is unique among this folleto's files
+                    String displayName = af.getOriginalFilename();
+                    if (displayName == null || displayName.isBlank()) displayName = fn;
+                    String baseDisplay = displayName;
+                    int part = 1;
+                    while (originalNameExists(saved.getFiles(), displayName)) {
+                        displayName = baseDisplay + " (parte " + part + ")";
+                        part++;
+                    }
+                    ff.setOriginalName(displayName);
+                    ff.setFilename(fn);
+                    ff.setType("audio");
+                    ff.setFolleto(saved);
+                    saved.getFiles().add(ff);
+                    if (!firstAudioSet) { saved.setAudioFilename(fn); firstAudioSet = true; }
+                }
+            }
+
             folletoServicio.guardar(saved);
             logger.info("Folleto final guardado con archivos (id={}, titulo={})", saved.getId(), saved.getTitulo());
             return "redirect:/folletos/" + id;
@@ -216,12 +293,56 @@ public class FolletoControlador {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/folletos/edit")
     public String editar(@ModelAttribute Folleto folleto,
-            @RequestParam(value = "coverFile", required = false) MultipartFile cover,
-            @RequestParam(value = "pdfFile", required = false) MultipartFile pdf,
-            @RequestParam(value = "audioFile", required = false) MultipartFile audio,
-            Model model) {
-        Optional<Folleto> opt = folletoServicio.porId(folleto.getId());
-        if (opt.isEmpty()) return "redirect:/folletos";
+             @RequestParam(value = "coverFile", required = false) MultipartFile cover,
+             @RequestParam(value = "pdfFiles", required = false) MultipartFile[] pdfFiles,
+             @RequestParam(value = "audioFiles", required = false) MultipartFile[] audioFiles,
+            Model model, RedirectAttributes redirectAttrs, HttpServletRequest request) {
+         // debug incoming form data binding
+         // normalize file arrays: remove empty entries to avoid false positives from empty inputs
+         pdfFiles = filterNonEmpty(pdfFiles);
+         audioFiles = filterNonEmpty(audioFiles);
+         try {
+             logger.info("editar: incoming Folleto from form - id={}, titulo='{}', ano={}, categoria='{}', descripcion='{}'",
+                     folleto == null ? null : folleto.getId(), folleto == null ? null : folleto.getTitulo(),
+                     folleto == null ? null : folleto.getAno(), folleto == null ? null : folleto.getCategoria(),
+                     folleto == null ? null : folleto.getDescripcion());
+            // log request parameter map for debugging client submissions
+            try {
+                StringBuilder pm = new StringBuilder();
+                request.getParameterMap().forEach((k,v)-> {
+                    pm.append(k).append("=");
+                    for (int i=0;i<v.length;i++) { pm.append(v[i]); if (i<v.length-1) pm.append(','); }
+                    pm.append(';');
+                });
+                logger.info("editar: request.params={}", pm.toString());
+            } catch (Exception e) {
+                logger.warn("editar: unable to dump request params: {}", e.getMessage());
+            }
+            // log counts and filenames of multipart arrays
+            if (pdfFiles != null) {
+                StringBuilder sbp = new StringBuilder();
+                for (MultipartFile m : pdfFiles) {
+                    sbp.append(m.getOriginalFilename()).append("(").append(m.getSize()).append("),");
+                }
+                logger.info("editar: pdfFiles filtered count={} namesSizes={}", pdfFiles.length, sbp.toString());
+            } else {
+                logger.info("editar: pdfFiles filtered is null");
+            }
+            if (audioFiles != null) {
+                StringBuilder sba = new StringBuilder();
+                for (MultipartFile m : audioFiles) {
+                    sba.append(m.getOriginalFilename()).append("(").append(m.getSize()).append("),");
+                }
+                logger.info("editar: audioFiles filtered count={} namesSizes={}", audioFiles.length, sba.toString());
+            } else {
+                logger.info("editar: audioFiles filtered is null");
+            }
+         } catch (Exception e) { logger.warn("editar: failed to log incoming folleto: {}", e.getMessage()); }
+         Optional<Folleto> opt = folletoServicio.porId(folleto.getId());
+        if (opt.isEmpty()) {
+            logger.warn("editar: no existing Folleto found for id={}", folleto == null ? null : folleto.getId());
+            return "redirect:/folletos";
+        }
         Folleto existing = opt.get();
         existing.setTitulo(folleto.getTitulo());
         // copy category from form
@@ -238,15 +359,28 @@ public class FolletoControlador {
         }
         // Server-side category validation: LOCAL requires PDF and must not include audio
         if (existing.getCategoria() != null && "LOCALES".equalsIgnoreCase(existing.getCategoria())) {
-            // If there's already a PDF stored, allow keeping it when editing (no need to re-subir)
-            boolean hasExistingPdf = existing.getPdfFilename() != null && !existing.getPdfFilename().isBlank();
-            if (!hasExistingPdf && (pdf == null || pdf.isEmpty())) {
+            boolean hasExistingPdf = (existing.getPdfFilename() != null && !existing.getPdfFilename().isBlank());
+            // also check related files for pdf
+            if (!hasExistingPdf) {
+                for (FolletoFile f : existing.getFiles()) {
+                    if ("pdf".equalsIgnoreCase(f.getType())) { hasExistingPdf = true; break; }
+                }
+            }
+            boolean hasPdfUpload = pdfFiles != null && pdfFiles.length>0;
+            if (!hasExistingPdf && !hasPdfUpload) {
                 model.addAttribute("errorMessage", "Los folletos locales requieren un archivo PDF.");
                 model.addAttribute("folleto", existing);
                 model.addAttribute("maxUploadBytes", maxUploadBytes);
                 return "admin/folletos_form";
             }
-            if (audio != null && !audio.isEmpty()) {
+            // Consider audio upload present only if any MultipartFile is non-empty.
+            boolean hasAudioUpload = false;
+            if (audioFiles != null) {
+                for (MultipartFile a : audioFiles) {
+                    if (a != null && !a.isEmpty()) { hasAudioUpload = true; break; }
+                }
+            }
+            if (hasAudioUpload) {
                 model.addAttribute("errorMessage", "Los folletos locales no permiten archivos de audio.");
                 model.addAttribute("folleto", existing);
                 model.addAttribute("maxUploadBytes", maxUploadBytes);
@@ -258,15 +392,71 @@ public class FolletoControlador {
                 String fn = storageService.storeFile(existing.getId(), cover, "cover");
                 existing.setCoverFilename(fn);
             }
-            if (pdf != null && !pdf.isEmpty()) {
-                String fn = storageService.storeFile(existing.getId(), pdf, "pdf");
-                existing.setPdfFilename(fn);
+
+            // debug: log uploaded audio/pdf counts and names for edit
+            if (audioFiles != null) {
+                StringBuilder sba = new StringBuilder();
+                for (MultipartFile m : audioFiles) { if (m==null) continue; sba.append(m.getOriginalFilename()).append(","); }
+                logger.info("editar: audioFiles count={} names={}", audioFiles.length, sba.toString());
+            } else {
+                logger.info("editar: audioFiles is null");
             }
-            if (audio != null && !audio.isEmpty()) {
-                String fn = storageService.storeFile(existing.getId(), audio, "audio");
-                existing.setAudioFilename(fn);
+            if (pdfFiles != null) {
+                StringBuilder sbp2 = new StringBuilder();
+                for (MultipartFile m : pdfFiles) { if (m==null) continue; sbp2.append(m.getOriginalFilename()).append(","); }
+                logger.info("editar: pdfFiles count={} names={}", pdfFiles.length, sbp2.toString());
+            }
+
+            if (pdfFiles != null) {
+                boolean firstPdfSet = (existing.getPdfFilename() != null && !existing.getPdfFilename().isBlank());
+                for (MultipartFile pf : pdfFiles) {
+                    if (pf == null || pf.isEmpty()) continue;
+                    String fn = storageService.storeFile(existing.getId(), pf, "pdf");
+                    FolletoFile ff = new FolletoFile();
+                    // Use the uploaded original filename as base for display; if it already exists among this folleto's files,
+                    // append a part counter so multiple uploads with the same name are shown distinctly.
+                    String displayName = pf.getOriginalFilename();
+                    if (displayName == null || displayName.isBlank()) displayName = fn;
+                    String baseDisplay = displayName;
+                    int part = 1;
+                    while (originalNameExists(existing.getFiles(), displayName)) {
+                        displayName = baseDisplay + " (parte " + part + ")";
+                        part++;
+                    }
+                    ff.setOriginalName(displayName);
+                    ff.setFilename(fn);
+                    ff.setType("pdf");
+                    ff.setFolleto(existing);
+                    existing.getFiles().add(ff);
+                    if (!firstPdfSet) { existing.setPdfFilename(fn); firstPdfSet = true; }
+                }
+            }
+
+            if (audioFiles != null) {
+                boolean firstAudioSet = (existing.getAudioFilename() != null && !existing.getAudioFilename().isBlank());
+                for (MultipartFile af : audioFiles) {
+                    if (af == null || af.isEmpty()) continue;
+                    String fn = storageService.storeFile(existing.getId(), af, "audio");
+                    FolletoFile ff = new FolletoFile();
+                    // ensure display name is unique among this folleto's files
+                    String displayName = af.getOriginalFilename();
+                    if (displayName == null || displayName.isBlank()) displayName = fn;
+                    String baseDisplay = displayName;
+                    int part = 1;
+                    while (originalNameExists(existing.getFiles(), displayName)) {
+                        displayName = baseDisplay + " (parte " + part + ")";
+                        part++;
+                    }
+                    ff.setOriginalName(displayName);
+                    ff.setFilename(fn);
+                    ff.setType("audio");
+                    ff.setFolleto(existing);
+                    existing.getFiles().add(ff);
+                    if (!firstAudioSet) { existing.setAudioFilename(fn); firstAudioSet = true; }
+                }
             }
             folletoServicio.guardar(existing);
+            redirectAttrs.addFlashAttribute("successMessage", "Folleto guardado correctamente.");
             return "redirect:/folletos/" + existing.getId();
         } catch (IOException ex) {
             logger.error("Error al guardar archivos para folleto id={}: {}", existing.getId(), ex.getMessage());
@@ -283,9 +473,15 @@ public class FolletoControlador {
         Optional<Folleto> opt = folletoServicio.porId(id);
         if (opt.isPresent()) {
             Folleto f = opt.get();
+            // delete cover
             storageService.deleteFile(f.getId(), f.getCoverFilename());
+            // delete legacy single files
             storageService.deleteFile(f.getId(), f.getPdfFilename());
             storageService.deleteFile(f.getId(), f.getAudioFilename());
+            // delete all related FolletoFile entries and their physical files
+            for (FolletoFile ff : f.getFiles()) {
+                try { storageService.deleteFile(f.getId(), ff.getFilename()); } catch (Exception ex) { /* ignore */ }
+            }
             folletoServicio.eliminar(f);
         }
         return "redirect:/folletos";
@@ -298,18 +494,22 @@ public class FolletoControlador {
         Optional<Folleto> opt = folletoServicio.porId(id);
         if (opt.isEmpty()) return ResponseEntity.notFound().build();
         Folleto f = opt.get();
+
+        // if there are multiple files of this type, return the first one (compatibility)
         String filename = null;
         String contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
         boolean inline = true; // default show inline
         if ("pdf".equalsIgnoreCase(type)) {
-            filename = f.getPdfFilename();
+            // pick first related pdf if present
+            for (FolletoFile ff : f.getFiles()) { if ("pdf".equalsIgnoreCase(ff.getType())) { filename = ff.getFilename(); break; } }
+            if (filename == null) filename = f.getPdfFilename();
             contentType = MediaType.APPLICATION_PDF_VALUE;
         } else if ("audio".equalsIgnoreCase(type)) {
-            filename = f.getAudioFilename();
+            for (FolletoFile ff : f.getFiles()) { if ("audio".equalsIgnoreCase(ff.getType())) { filename = ff.getFilename(); break; } }
+            if (filename == null) filename = f.getAudioFilename();
             contentType = "audio/mpeg";
         } else if ("cover".equalsIgnoreCase(type)) {
             filename = f.getCoverFilename();
-            // leave contentType to be determined after we have the actual file path
             contentType = MediaType.IMAGE_JPEG_VALUE;
         }
         if (filename == null) return ResponseEntity.notFound().build();
@@ -326,7 +526,6 @@ public class FolletoControlador {
                 if (probed != null && !probed.isBlank()) {
                     contentType = probed;
                 } else {
-                    // fallback to common image types based on extension
                     String name = filePath.getFileName().toString().toLowerCase();
                     if (name.endsWith(".png")) contentType = "image/png";
                     else if (name.endsWith(".webp")) contentType = "image/webp";
@@ -337,7 +536,6 @@ public class FolletoControlador {
             }
         }
 
-        // inline unless download=true
         inline = !download;
 
         if (rangeHeader == null) {
@@ -373,6 +571,67 @@ public class FolletoControlador {
         }
     }
 
+    // New: serve a specific FolletoFile by its id
+    @GetMapping("/files/{id}/file/{fileId}")
+    public ResponseEntity<Resource> servirArchivoByFileId(@PathVariable Long id, @PathVariable Long fileId,
+            @RequestHeader(value = "Range", required = false) String rangeHeader,
+            @RequestParam(value = "download", required = false, defaultValue = "false") boolean download) throws IOException {
+        Optional<Folleto> opt = folletoServicio.porId(id);
+        if (opt.isEmpty()) return ResponseEntity.notFound().build();
+        Optional<FolletoFile> off = folletoFileRepo.findById(fileId);
+        if (off.isEmpty()) return ResponseEntity.notFound().build();
+        FolletoFile ff = off.get();
+        if (ff.getFolleto() == null || !ff.getFolleto().getId().equals(id)) return ResponseEntity.notFound().build();
+
+        String filename = ff.getFilename();
+        Resource resource = storageService.loadAsResource(id, filename);
+        if (resource == null) return ResponseEntity.notFound().build();
+
+        Path filePath = Paths.get(resource.getURI());
+        long fileLength = Files.size(filePath);
+
+        String contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        if ("pdf".equalsIgnoreCase(ff.getType())) contentType = MediaType.APPLICATION_PDF_VALUE;
+        else if ("audio".equalsIgnoreCase(ff.getType())) contentType = "audio/mpeg";
+        else if ("cover".equalsIgnoreCase(ff.getType())) {
+            try { String probed = Files.probeContentType(filePath); if (probed != null && !probed.isBlank()) contentType = probed; } catch (IOException ex) {}
+        }
+
+        boolean inline = !download;
+
+        if (rangeHeader == null) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.CONTENT_TYPE, contentType);
+            if (inline) headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + ff.getOriginalName() + "\"");
+            else headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + ff.getOriginalName() + "\"");
+            headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+            InputStreamResource body = new InputStreamResource(Files.newInputStream(filePath));
+            return ResponseEntity.ok().headers(headers).contentLength(fileLength).body(body);
+        }
+
+        List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
+        HttpRange r = ranges.get(0);
+        long start = r.getRangeStart(fileLength);
+        long end = r.getRangeEnd(fileLength);
+        long rangeLength = end - start + 1;
+
+        InputStream is = Files.newInputStream(filePath);
+        is.skip(start);
+        InputStreamResource body = new InputStreamResource(is);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.CONTENT_TYPE, contentType);
+        headers.set(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileLength);
+        headers.set(HttpHeaders.ACCEPT_RANGES, "bytes");
+        if (inline) {
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + ff.getOriginalName() + "\"");
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).headers(headers).contentLength(rangeLength).body(body);
+        } else {
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + ff.getOriginalName() + "\"");
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).headers(headers).contentLength(rangeLength).body(body);
+        }
+    }
+
     // Admin-only helper to seed sample folletos per category when missing
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin/folletos/seed")
@@ -398,5 +657,57 @@ public class FolletoControlador {
             Folleto b = new Folleto(); b.setTitulo("Folleto L2"); b.setAno(1985); b.setDescripcion("Seed LOCALES 2"); b.setCategoria("LOCALES"); folletoServicio.guardar(b);
         }
         return "redirect:/folletos";
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/admin/folletos/{id}/files/delete/{fileId}")
+    public String eliminarArchivoIndividual(@PathVariable Long id, @PathVariable Long fileId, RedirectAttributes redirectAttrs) throws IOException {
+        Optional<Folleto> opt = folletoServicio.porId(id);
+        if (opt.isEmpty()) return "redirect:/folletos";
+        Optional<FolletoFile> off = folletoFileRepo.findById(fileId);
+        if (off.isEmpty()) return "redirect:/admin/folletos/edit/" + id;
+        FolletoFile ff = off.get();
+        // ensure file belongs to the folleto
+        if (ff.getFolleto() == null || ff.getFolleto().getId() == null || !ff.getFolleto().getId().equals(id)) {
+            return "redirect:/admin/folletos/edit/" + id;
+        }
+        Folleto f = opt.get();
+        // delete physical file if present
+        try { storageService.deleteFile(id, ff.getFilename()); } catch (Exception ex) { /* ignore */ }
+        // remove from parent's collection (orphanRemoval should remove DB entry on save)
+        f.getFiles().removeIf(x -> x.getId() != null && x.getId().equals(fileId));
+        // clear legacy single-file pointers if they referenced this filename
+        if ("pdf".equalsIgnoreCase(ff.getType()) && ff.getFilename() != null && ff.getFilename().equals(f.getPdfFilename())) {
+            f.setPdfFilename(null);
+        }
+        if ("audio".equalsIgnoreCase(ff.getType()) && ff.getFilename() != null && ff.getFilename().equals(f.getAudioFilename())) {
+            f.setAudioFilename(null);
+        }
+        folletoServicio.guardar(f);
+        // ensure repository does not keep orphan (safe delete)
+        try { folletoFileRepo.deleteById(fileId); } catch (Exception ex) { /* ignore */ }
+        // After deleting a file, return to the admin edit page so the user can continue editing
+        redirectAttrs.addFlashAttribute("successMessage", "Archivo eliminado correctamente.");
+        return "redirect:/admin/folletos/edit/" + id;
+    }
+
+    // New helper to check whether a display/original name already exists among a Folleto's files.
+    private boolean originalNameExists(List<FolletoFile> files, String name) {
+        if (name == null || files == null) return false;
+        for (FolletoFile f : files) {
+            if (f.getOriginalName() != null && f.getOriginalName().equalsIgnoreCase(name)) return true;
+        }
+        return false;
+    }
+
+    // helper to remove empty MultipartFile entries
+    private MultipartFile[] filterNonEmpty(MultipartFile[] files) {
+        if (files == null || files.length == 0) return null;
+        List<MultipartFile> res = new ArrayList<>();
+        for (MultipartFile f : files) {
+            if (f != null && !f.isEmpty()) res.add(f);
+        }
+        if (res.isEmpty()) return null;
+        return res.toArray(new MultipartFile[0]);
     }
 }

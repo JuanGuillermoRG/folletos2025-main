@@ -14,11 +14,28 @@
         </div>
 
         <div class="mt-3">
+            <!-- Show all related PDFs if present -->
+            <div th:if="${folleto.files != null}">
+                <div th:each="f : ${folleto.files}" th:if="${f.type == 'pdf'}" style="margin-bottom:6px;">
+                    <a th:href="@{/files/{id}/file/{fileId}(id=${folleto.id},fileId=${f.id})}" target="_blank" th:text="${f.originalName}">PDF</a>
+                </div>
+            </div>
+            <!-- legacy single-file link (kept for backward compat) -->
             <a th:if="${folleto.pdfFilename!=null}" th:href="@{/files/{id}/pdf(id=${folleto.id})}" class="btn btn-secondary" target="_blank">Ver/Descargar PDF</a>
         </div>
 
-        <div class="mt-3" th:if="${folleto.audioFilename!=null}">
-            <audio controls th:src="@{/files/{id}/audio(id=${folleto.id})}"></audio>
+        <div class="mt-3" th:if="${folleto.files != null and #lists.size(folleto.files.?[type=='audio']) > 0}">
+            <p><strong>Audios:</strong></p>
+            <div th:if="${folleto.files != null}">
+                <div th:each="f : ${folleto.files}" th:if="${f.type == 'audio'}" style="margin-bottom:12px;">
+                    <p th:text="${f.originalName}"></p>
+                    <audio controls style="max-width:100%;">
+                        <source th:src="@{/files/{id}/file/{fileId}(id=${folleto.id},fileId=${f.id})}" />
+                        Tu navegador no soporta el elemento de audio.
+                    </audio>
+                </div>
+            </div>
+            <!-- legacy single-file audio player removed: only show FolletoFile audio entries -->
         </div>
 
     </div>
