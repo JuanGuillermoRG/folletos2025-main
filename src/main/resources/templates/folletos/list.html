@@ -4,20 +4,23 @@
 <body>
 <div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
 <div class="container mt-4">
-    <h3 th:text="${categoriaLabel}">Folletos</h3>
+    <h3 th:text="${categoriaLabel == null or categoriaLabel == 'Folletos' ? 'Folletos William Branham' : categoriaLabel}">Folletos</h3>
     <div class="mb-3">
         <form class="row g-2" method="get" action="/folletos">
-            <div class="col-auto">
+            <!-- Mostrar filtro por año sólo si no es la vista de Folletos Locales -->
+            <div class="col-auto" th:if="${categoriaLabel==null or categoriaLabel != 'Folletos Locales'}">
                 <select name="ano" class="form-control">
-                    <option value="" th:selected="${ano==null}">Todos</option>
+                    <!-- Mostrar placeholder 'Años' para vistas específicas; en otras vistas mostrar 'Todos' -->
+                    <option value="" th:if="${categoriaLabel!=null and (#strings.toLowerCase(categoriaLabel)=='folletos william branham' or #strings.toLowerCase(categoriaLabel)=='folletos compaginados')}" th:selected="${ano==null}" disabled>Buscar por Año</option>
+                    <option value="" th:if="${categoriaLabel==null or (categoriaLabel!=null and !(#strings.toLowerCase(categoriaLabel)=='folletos william branham' or #strings.toLowerCase(categoriaLabel)=='folletos compaginados'))}" th:selected="${ano==null}">Buscar por Año</option>
                     <option th:each="year : ${#numbers.sequence(1947,1965)}" th:value="${year}" th:text="${year}" th:selected="${ano==year}"></option>
                 </select>
             </div>
             <div class="col-auto">
-                <input type="text" name="titulo" class="form-control" placeholder="Buscar por título" th:value="${titulo}">
-            </div>
-            <div class="col-auto">
-                <button class="btn btn-primary">Filtrar</button>
+                <div class="input-group" style="width:150%;">
+                    <input type="text" name="titulo" class="form-control me-2 rounded" placeholder="Buscar por título" th:value="${titulo}">
+                    <button class="btn btn-primary rounded" type="submit">Filtrar</button>
+                </div>
             </div>
             <div class="col-auto" th:if="${ano!=null} or (${titulo}!=null and ${titulo}!='')">
                 <a class="btn btn-secondary" th:href="@{/folletos}">Listar Todos</a>
