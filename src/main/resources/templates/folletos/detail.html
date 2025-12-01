@@ -39,6 +39,13 @@
         </div>
 
     </div>
+
+    <!-- Button to return to the appropriate listado based on category -->
+    <div class="mt-4">
+        <a class="btn btn-outline-info" th:if="${folleto.categoria==null or folleto.categoria=='FOLLETOS'}" th:href="@{/folletos}">Volver al listado</a>
+        <a class="btn btn-outline-info" th:if="${folleto.categoria=='COMPAGINADOS'}" th:href="@{/folletos/combinados}">Volver al listado</a>
+        <a class="btn btn-outline-info" th:if="${folleto.categoria=='LOCALES'}" th:href="@{/folletos/locales}">Volver al listado</a>
+    </div>
 </div>
 <div th:replace="~{fragmentos/pie-pagina :: pie-pagina-seccion}"></div>
 </body>

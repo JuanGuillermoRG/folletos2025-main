@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<html lang="es" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
 <head th:replace="~{fragmentos/cabecero :: cabecero-seccion(titulo='Admin Folletos')}"></head>
 <body>
 <div th:replace="~{fragmentos/navegacion::navegacion-seccion}"></div>
@@ -9,8 +9,16 @@
     <div th:if="${errorMessage!=null}" class="alert alert-danger" th:text="${errorMessage}"></div>
     <div th:if="${successMessage!=null}" class="alert alert-success" th:text="${successMessage}"></div>
 
-    <form th:action="${folleto.id==null} ? @{/admin/folletos/add} : @{/admin/folletos/edit}" method="post" enctype="multipart/form-data" id="folletoForm" onsubmit="return validateForm()">
-        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" th:if="${_csrf != null}" />
+    <!-- Si successMessage está presente (guardado reciente), ocultar el formulario y mostrar sólo el botón "Volver al listado" -->
+    <div th:if="${successMessage!=null}">
+        <div class="mb-3">
+            <a class="btn btn-outline-info" th:if="${folleto.categoria==null or folleto.categoria=='FOLLETOS'}" th:href="@{/folletos}">Volver al listado</a>
+            <a class="btn btn-outline-info" th:if="${folleto.categoria=='COMPAGINADOS'}" th:href="@{/folletos/combinados}">Volver al listado</a>
+            <a class="btn btn-outline-info" th:if="${folleto.categoria=='LOCALES'}" th:href="@{/folletos/locales}">Volver al listado</a>
+        </div>
+    </div>
+    <form th:if="${successMessage==null}" th:action="${folleto.id==null} ? @{/admin/folletos/add} : @{/admin/folletos/edit}" method="post" enctype="multipart/form-data" id="folletoForm" onsubmit="return validateForm()">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" th:if="${_csrf != null}" id="_csrf_token" data-csrf-param="${_csrf.parameterName}" />
         <input type="hidden" th:if="${folleto.id!=null}" name="id" th:value="${folleto.id}" />
         <div class="mb-3">
             <label class="form-label">Título</label>
@@ -52,6 +60,7 @@
                     <!-- list related pdf FolletoFile entries -->
                     <li th:each="f : ${folleto.files}" th:if="${f.type == 'pdf'}">
                         <a th:href="@{/files/{id}/file/{fileId}(id=${folleto.id},fileId=${f.id})}" target="_blank" th:text="${f.originalName}">PDF</a>
+                        <button type="button" class="btn btn-sm btn-outline-danger" style="margin-left:8px;" th:onclick="|submitDeleteFile(${folleto.id}, ${f.id}, 'Confirmar eliminación del archivo?')|" sec:authorize="hasRole('ROLE_ADMIN')">Eliminar</button>
                     </li>
                     <!-- legacy single-file link (kept for backward compat) -->
                     <li th:if="${folleto.pdfFilename!=null}">
@@ -79,7 +88,10 @@
                 <div>
                     <!-- list related audio FolletoFile entries with players -->
                     <div th:each="f : ${folleto.files}" th:if="${f.type == 'audio'}" style="margin-bottom:10px;">
-                        <p th:text="${f.originalName}"></p>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <p class="mb-0" th:text="${f.originalName}"></p>
+                            <button type="button" class="btn btn-sm btn-outline-danger" th:onclick="|submitDeleteFile(${folleto.id}, ${f.id}, 'Confirmar eliminación del archivo de audio?')|" sec:authorize="hasRole('ROLE_ADMIN')">Eliminar</button>
+                        </div>
                         <audio controls style="max-width:320px; display:block; margin-bottom:6px;">
                             <source th:src="@{/files/{id}/file/{fileId}(id=${folleto.id},fileId=${f.id})}" />
                             Tu navegador no soporta el elemento de audio.
@@ -95,7 +107,9 @@
         </div>
         <div class="mb-3">
             <button class="btn btn-primary" type="submit">Guardar</button>
-            <a class="btn btn-secondary" th:href="@{/folletos}">Cancelar</a>
+            <a class="btn btn-secondary" th:if="${folleto.categoria==null or folleto.categoria=='FOLLETOS'}" th:href="@{/folletos}">Cancelar</a>
+            <a class="btn btn-secondary" th:if="${folleto.categoria=='COMPAGINADOS'}" th:href="@{/folletos/combinados}">Cancelar</a>
+            <a class="btn btn-secondary" th:if="${folleto.categoria=='LOCALES'}" th:href="@{/folletos/locales}">Cancelar</a>
         </div>
     </form>
 </div>
@@ -174,6 +188,25 @@ function validateForm() {
 </script>
 
 <script>
+function submitDeleteFile(folletoId, fileId, message) {
+    if (!confirm(message)) return;
+    const csrfElem = document.getElementById('_csrf_token');
+    const param = csrfElem ? csrfElem.getAttribute('data-csrf-param') : '_csrf';
+    const token = csrfElem ? csrfElem.value : '';
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = '/admin/folletos/' + folletoId + '/files/delete/' + fileId;
+    if (param) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = param;
+        input.value = token;
+        form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+}
+
 // hide/show audio based on category selection and require PDF for LOCAL
 document.addEventListener('DOMContentLoaded', function() {
     const cat = document.getElementById('categoriaSelect');

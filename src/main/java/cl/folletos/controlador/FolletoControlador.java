@@ -138,7 +138,7 @@ public class FolletoControlador {
             @RequestParam(value = "coverFile", required = false) MultipartFile cover,
             @RequestParam(value = "pdfFiles", required = false) MultipartFile[] pdfFiles,
             @RequestParam(value = "audioFiles", required = false) MultipartFile[] audioFiles,
-            Model model) {
+            Model model, RedirectAttributes redirectAttrs) {
         logger.info("Solicitud de creación recibida");
 
         // Validate year
@@ -263,7 +263,9 @@ public class FolletoControlador {
 
             folletoServicio.guardar(saved);
             logger.info("Folleto final guardado con archivos (id={}, titulo={})", saved.getId(), saved.getTitulo());
-            return "redirect:/folletos/" + id;
+            redirectAttrs.addFlashAttribute("successMessage", "Folleto guardado correctamente.");
+            // Redirect to the edit page so the user stays on the form and sees the success message and the 'Volver al listado' button
+            return "redirect:/admin/folletos/edit/" + id;
         } catch (IOException ex) {
             logger.error("Error al guardar archivos para folleto id={}: {}", id, ex.getMessage(), ex);
             model.addAttribute("errorMessage", "Error al guardar archivos: " + ex.getMessage());
@@ -457,8 +459,9 @@ public class FolletoControlador {
             }
             folletoServicio.guardar(existing);
             redirectAttrs.addFlashAttribute("successMessage", "Folleto guardado correctamente.");
-            return "redirect:/folletos/" + existing.getId();
-        } catch (IOException ex) {
+            // Stay on the edit form after saving so the template can show the successMessage and the 'Volver al listado' button
+            return "redirect:/admin/folletos/edit/" + existing.getId();
+         } catch (IOException ex) {
             logger.error("Error al guardar archivos para folleto id={}: {}", existing.getId(), ex.getMessage());
             model.addAttribute("errorMessage", "Error al guardar archivos: " + ex.getMessage());
             model.addAttribute("folleto", existing);
